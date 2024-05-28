@@ -2,7 +2,7 @@ import { Field, InputType, ObjectType, Int } from '@nestjs/graphql';
 
 @ObjectType()
 export class User {
-  @Field(type => Int)
+  @Field((type) => Int)
   id: number;
 
   @Field()
@@ -23,21 +23,21 @@ export class CreateUserInput {
 
 @InputType()
 export class PaginationInput {
-  @Field(type => Int)
+  @Field((type) => Int)
   page: number;
 
-  @Field(type => Int)
+  @Field((type) => Int)
   pageSize: number;
 }
 
 @ObjectType()
 export class PaginatedUsers {
-  @Field(type => [User])
+  @Field((type) => [User])
   users: User[];
 
-  @Field(type => Int)
+  @Field((type) => Int)
   totalCount: number;
 
-  @Field(type => Int)
+  @Field((type) => Int)
   totalPages: number;
 }
