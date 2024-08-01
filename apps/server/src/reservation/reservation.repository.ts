@@ -1,7 +1,6 @@
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import { Injectable } from '@nestjs/common';
-import { Reservation } from '@prisma/client';
 import { CreateReservationInput } from './reservation.schema';
 
 @Injectable()

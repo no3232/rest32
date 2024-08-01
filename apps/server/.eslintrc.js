@@ -26,7 +26,7 @@ module.exports = {
     {
       files: ['*.resolver.ts', '*.schema.ts'],
       rules: {
-        '@typescript-eslint/no-unused-vars': 'off',
+        '@typescript-eslint/no-unused-vars': 'warn',
       },
     },
   ],
