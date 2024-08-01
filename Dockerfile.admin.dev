@@ -1,0 +1,67 @@
+# node:18 도커 멀티스테이지 빌드 기능으로 base 설정
+# alpine은 5mb상당의 기본적인 기능만 들어있는 리눅스 이미지
+# 해당 이미지를 사용해서 도커 이미지의 크기를 줄일 수 있다
+FROM node:18-alpine AS base
+# pnpm 전역 설치
+# pnpm의 글로벌 저장소 위치를 지정
+ENV PNPM_HOME="/pnpm"
+# pnpm 실행 파일이 시스템 어디서나 접근 가능하도록
+ENV PATH="$PNPM_HOME:$PATH"
+# corepack은 Node.js의 기능으로, 여러 패키지 관리자(npm, yarn, pnpm)의 버전을 관리
+RUN corepack enable
+ 
+# base를 기반으로 빌더 스테이지를 설정
+FROM base AS builder
+RUN apk update
+RUN apk add --no-cache libc6-compat
+# word directory를 /app으로 설정
+WORKDIR /app
+# 현재 모노레포에서 사용중인 turbo레포를 설치
+RUN pnpm add -g turbo@^2
+COPY . .
+ 
+# 해당 단일 레포에만 해당하는 패키지들을 추출해서 빌드해주는 명령어
+# prune 뒤쪽에 빌드하고 싶은 레포의 package.json의 name을 설정
+RUN turbo prune admin --docker
+ 
+# pnpm lock파일과 workspace파일을 복사해온뒤 
+# 개발환경의 의존성을 설치한다.
+FROM base AS installer
+RUN apk update
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+ 
+# builder에서 설정된 pnpm-lock.yaml, pnpm-workspance.yaml파일을 인스톨러에 복사
+COPY .gitignore .gitignore
+COPY --from=builder /app/out/json/ .
+COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+# 개발환경과 동일하도록 lockfile을 기반으로 의존성을 설치
+RUN pnpm install --frozen-lockfile
+ 
+# installer에서 설정한 환경을 기반으로 프로젝트를 빌드
+# builder에서 prune으로 필요없는 폴더가 제거된 폴더를 가져온다.
+COPY --from=builder /app/out/full/ .
+# 해당 폴더를 기반으로 빌드 실행
+RUN pnpm turbo run build --filter=admin
+
+# 최종적으로 컨테이너에서 돌릴 이미지를 설정
+FROM base AS runner
+WORKDIR /app
+ 
+# 새로운 nextjs사용자를 생성해서 루트에 접근하지 못하도록 권한을 설정
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+USER nextjs
+ 
+# installer에서 next설정파일과 package.json을 복사
+COPY --from=installer /app/apps/admin/next.config.mjs .
+COPY --from=installer /app/apps/admin/package.json .
+ 
+# nextjs standalone파일과 static, public에 저장된 에셋을 복사
+COPY --from=installer --chown=nextjs:nodejs /app/apps/admin/.next/standalone ./
+COPY --from=installer --chown=nextjs:nodejs /app/apps/admin/.next/static ./apps/admin/.next/static
+COPY --from=installer --chown=nextjs:nodejs /app/apps/admin/public ./apps/admin/public
+
+# 해당 js파일을 실행하면 서버설정이 완료된다.
+CMD node apps/admin/server.js

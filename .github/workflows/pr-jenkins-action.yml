@@ -1,0 +1,68 @@
+name: PR Merge Workflow
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  check_pr_merged:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    outputs:
+      pr_types: ${{ steps.check_pr_body.outputs.pr_types }}
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Check PR body
+        id: check_pr_body
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const prBody = context.payload.pull_request.body;
+            const prTypes = [];
+            
+            if (prBody.includes('- [x] MAIN')) prTypes.push('MAIN');
+            if (prBody.includes('- [x] DEV-USER')) prTypes.push('DEV-USER');
+            if (prBody.includes('- [x] DEV-ADMIN')) prTypes.push('DEV-ADMIN');
+            if (prBody.includes('- [x] DEV-SERVER')) prTypes.push('DEV-SERVER');
+            
+            core.setOutput('pr_types', JSON.stringify(prTypes));
+
+  trigger_jenkins:
+    needs: check_pr_merged
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Jenkins Pipelines
+        env:
+          PR_TYPES: ${{ needs.check_pr_merged.outputs.pr_types }}
+        run: |
+          PR_TYPES_ARRAY=$(echo $PR_TYPES | jq -r '.[]')
+          
+          for PR_TYPE in $PR_TYPES_ARRAY
+          do
+            JENKINS_JOB=""
+            case "$PR_TYPE" in
+              "MAIN")
+                JENKINS_JOB="DEPLOY_REST32"
+                ;;
+              "DEV-USER")
+                JENKINS_JOB="DEV_REST32USER"
+                ;;
+              "DEV-ADMIN")
+                JENKINS_JOB="DEV_REST32ADMIN"
+                ;;
+              "DEV-SERVER")
+                JENKINS_JOB="DEV_REST32SERVER"
+                ;;
+            esac
+            
+            if [ -n "$JENKINS_JOB" ]; then
+              echo "트리거 Jenkins 작업: $JENKINS_JOB"
+              curl -X POST \
+                --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }} \
+                "${{ secrets.JENKINS_URL }}/job/${JENKINS_JOB}/build"
+            else
+              echo "PR 유형에 대한 일치하는 Jenkins 작업을 찾을 수 없습니다: $PR_TYPE"
+            fi
+          done
