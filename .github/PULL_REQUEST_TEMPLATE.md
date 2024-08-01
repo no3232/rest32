@@ -1,12 +1,14 @@
 # 제목 :
 
 ## PR Type
+
 - [ ] MAIN
 - [ ] DEV-USER
 - [ ] DEV-ADMIN
 - [ ] DEV-SERVER
 
 ## 작업 내용
+
 작업한 내용과 이유를 적어주세요.
 <br />
 

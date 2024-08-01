@@ -1,11 +1,13 @@
-import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Int, Context } from '@nestjs/graphql';
 import { UserService } from './user.service';
 import {
   User,
-  CreateUserInput,
   PaginationInput,
   PaginatedUsers,
+  UpdateUserInput,
 } from './user.schema';
+import { UseGuards } from '@nestjs/common';
+import { GqlAuthGuard } from 'src/auth/gql-auth.guard';
 
 @Resolver((of) => User)
 export class UserResolver {
@@ -24,26 +26,30 @@ export class UserResolver {
   }
   @Query((returns) => User, { nullable: true })
   async user(
-    @Args('id', { type: () => Int }) id: number,
+    @Args('uuid', { type: () => String }) uuid: string,
   ): Promise<User | null> {
-    return this.userService.getUserById(id);
+    return this.userService.getUserById(uuid);
   }
 
-  @Mutation((returns) => User)
-  async createUser(@Args('data') data: CreateUserInput): Promise<User> {
-    return this.userService.createUser(data);
+  @Query((returns) => User)
+  @UseGuards(GqlAuthGuard)
+  async me(@Context() context) {
+    const user = context.req.user;
+    return this.userService.getUserByUserId(user.userId);
   }
 
   @Mutation((returns) => User)
   async updateUser(
-    @Args('id', { type: () => Int }) id: number,
-    @Args('data') data: CreateUserInput,
+    @Args('uuid', { type: () => String }) uuid: string,
+    @Args('data') data: UpdateUserInput,
   ): Promise<User> {
-    return this.userService.updateUser(id, data);
+    return this.userService.updateUser(uuid, data);
   }
 
   @Mutation((returns) => User)
-  async deleteUser(@Args('id', { type: () => Int }) id: number): Promise<User> {
-    return this.userService.deleteUser(id);
+  async deleteUser(
+    @Args('uuid', { type: () => String }) uuid: string,
+  ): Promise<User> {
+    return this.userService.deleteUser(uuid);
   }
 }

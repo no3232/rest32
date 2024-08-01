@@ -1,5 +1,6 @@
 import Image from "next/image";
 import styles from "./page.module.css";
+import { Button } from "@repo/ui";
 
 export default function Home() {
   return (
@@ -15,6 +16,7 @@ export default function Home() {
             target="_blank"
             rel="noopener noreferrer"
           >
+            <Button />
             By{" "}
             <Image
               src="/vercel.svg"

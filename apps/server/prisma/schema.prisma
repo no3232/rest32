@@ -16,7 +16,37 @@ datasource db {
 }
 
 model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
+  uuid              String              @id @default(uuid())
+  userId            String              @unique @map("user_id")
+  password          String
+  name              String
+  email             String
+  phoneNumber       String              @map("phone_number")
+  profilePicture    String              @default("") @map("profile_picture")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  ReservationOnUser ReservationOnUser[]
+  Reservation       Reservation[]
+}
+
+model Reservation {
+  uuid              String              @id @default(uuid())
+  reservationDate   DateTime            @map("reservation_date")
+  menu              String?
+  ownerId           String              @map("owner_id")
+  owner             User                @relation(fields: [ownerId], references: [uuid], onDelete: Cascade)
+  ReservationOnUser ReservationOnUser[]
+}
+
+model ReservationOnUser {
+  userUuid      String      @map("user_uuid")
+  reservationId String      @map("reservation_id")
+  user          User        @relation(fields: [userUuid], references: [uuid])
+  reservation   Reservation @relation(fields: [reservationId], references: [uuid], onDelete: Cascade)
+  request       String?
+  isAccepted    Boolean     @default(false) @map("is_accepted")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@id([userUuid, reservationId])
 }

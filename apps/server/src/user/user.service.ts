@@ -29,8 +29,12 @@ export class UserService {
     return { users, totalCount, totalPages };
   }
 
-  async getUserById(id: number): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id } });
+  async getUserById(uuid: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { uuid } });
+  }
+
+  async getUserByUserId(userId: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { userId } });
   }
 
   async createUser(data: Prisma.UserCreateInput): Promise<User> {
@@ -48,16 +52,16 @@ export class UserService {
     }
   }
 
-  async updateUser(id: number, data: Prisma.UserUpdateInput): Promise<User> {
+  async updateUser(uuid: string, data: Prisma.UserUpdateInput): Promise<User> {
     return this.prisma.user.update({
-      where: { id },
+      where: { uuid },
       data,
     });
   }
 
-  async deleteUser(id: number): Promise<User> {
+  async deleteUser(uuid: string): Promise<User> {
     return this.prisma.user.delete({
-      where: { id },
+      where: { uuid },
     });
   }
 }
