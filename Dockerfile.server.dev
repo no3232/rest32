@@ -1,0 +1,85 @@
+# node:18 도커 멀티스테이지 빌드 기능으로 base 설정
+# alpine은 5mb상당의 기본적인 기능만 들어있는 리눅스 이미지
+# 해당 이미지를 사용해서 도커 이미지의 크기를 줄일 수 있다
+FROM node:18-alpine AS base
+# pnpm 전역 설치
+# pnpm의 글로벌 저장소 위치를 지정
+ENV PNPM_HOME="/pnpm"
+# pnpm 실행 파일이 시스템 어디서나 접근 가능하도록
+ENV PATH="$PNPM_HOME:$PATH"
+# corepack은 Node.js의 기능으로, 여러 패키지 관리자(npm, yarn, pnpm)의 버전을 관리
+RUN corepack enable
+ 
+# base를 기반으로 빌더 스테이지를 설정
+FROM base AS builder
+RUN apk update
+RUN apk add --no-cache libc6-compat
+# word directory를 /app으로 설정
+WORKDIR /app
+# 현재 모노레포에서 사용중인 turbo레포를 설치
+RUN pnpm add -g turbo@^2
+COPY . .
+ 
+# 해당 단일 레포에만 해당하는 패키지들을 추출해서 빌드해주는 명령어
+# prune 뒤쪽에 빌드하고 싶은 레포의 package.json의 name을 설정
+RUN turbo prune server --docker
+ 
+# pnpm lock파일과 workspace파일을 복사해온뒤 
+# 개발환경의 의존성을 설치한다.
+FROM base AS installer
+RUN apk update
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+ 
+# builder에서 설정된 pnpm-lock.yaml, pnpm-workspance.yaml파일을 인스톨러에 복사
+COPY .gitignore .gitignore
+COPY --from=builder /app/out/json/ .
+COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+# 개발환경과 동일하도록 lockfile을 기반으로 의존성을 설치
+RUN pnpm install --frozen-lockfile
+RUN cat ./pnpm-workspace.yaml
+ 
+# installer에서 설정한 환경을 기반으로 프로젝트를 빌드
+# builder에서 prune으로 필요없는 폴더가 제거된 폴더를 가져온다.
+COPY --from=builder /app/out/full/ .
+
+# 빌드하기전에 프리즈마 클라이언트를 생성
+ENV PRISMA_SCHEMA_PATH=/app/prisma/schema.prisma
+WORKDIR /app/apps/server
+RUN pnpm prisma:generate
+WORKDIR /app
+# 해당 폴더를 기반으로 빌드 실행
+RUN pnpm turbo run build --filter=server
+
+FROM base AS runner
+WORKDIR /app
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nestjs
+USER nestjs
+
+COPY --from=installer --chown=nestjs:nodejs /app/package.json .
+COPY --from=installer --chown=nestjs:nodejs /app/apps/server/package.json /app/apps/server/package.json
+COPY --from=installer --chown=nestjs:nodejs /app/apps/server/dist /app/apps/server/dist
+COPY --from=installer --chown=nestjs:nodejs /app/apps/server/node_modules /app/apps/server/node_modules
+COPY --from=installer --chown=nestjs:nodejs /app/node_modules /app/node_modules
+COPY --from=installer --chown=nestjs:nodejs /app/apps/server/prisma /app/apps/server/prisma
+
+ENV DATABASE_URL=mysql://root:1234@172.18.0.2/rest32test?schema=public
+ENV JWT_SECRET=7b46ebde3b45032a214ce1f53219802e85ae9ff213bc2f267bf52194711f0a27d41402b2a526e6c4fc428f2daf79a95810759a8f2ee2eda9b7f182be3dd8c450
+ENV PASSWORD_SECRET=no3232rest
+
+USER root
+
+WORKDIR /app/apps/server
+
+# 시작 스크립트 생성
+RUN echo '#!/bin/sh' > start.sh && \
+    echo 'yes | corepack enable' >> start.sh && \
+    echo 'yes | pnpm prisma migrate deploy' >> start.sh && \
+    echo 'node dist/main.js' >> start.sh && \
+    chmod +x start.sh
+
+# 시작 스크립트 실행
+CMD ["./start.sh"]
