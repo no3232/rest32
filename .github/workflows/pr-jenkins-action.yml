@@ -2,7 +2,7 @@ name: PR Workflow
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [closed]
 
 jobs:
   check_pr_body:
