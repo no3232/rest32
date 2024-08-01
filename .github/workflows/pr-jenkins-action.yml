@@ -1,14 +1,15 @@
-name: PR Workflow
+name: PR Merge Workflow
 
 on:
   pull_request:
     types: [closed]
 
 jobs:
-  check_pr_body:
+  check_pr_merged:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
     outputs:
-      pr_type: ${{ steps.check_pr_body.outputs.pr_type }}
+      pr_types: ${{ steps.check_pr_body.outputs.pr_types }}
     steps:
       - uses: actions/checkout@v2
       
@@ -19,29 +20,27 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const prBody = context.payload.pull_request.body;
-            let prType = 'UNKNOWN';
+            const prTypes = [];
             
-            if (prBody.includes('- [x] MAIN')) {
-              prType = 'MAIN';
-            } else if (prBody.includes('- [x] DEV-USER')) {
-              prType = 'DEV-USER';
-            } else if (prBody.includes('- [x] DEV-ADMIN')) {
-              prType = 'DEV-ADMIN';
-            } else if (prBody.includes('- [x] DEV-SERVER')) {
-              prType = 'DEV-SERVER';
-            }
+            if (prBody.includes('- [x] MAIN')) prTypes.push('MAIN');
+            if (prBody.includes('- [x] DEV-USER')) prTypes.push('DEV-USER');
+            if (prBody.includes('- [x] DEV-ADMIN')) prTypes.push('DEV-ADMIN');
+            if (prBody.includes('- [x] DEV-SERVER')) prTypes.push('DEV-SERVER');
             
-            core.setOutput('pr_type', prType);
+            core.setOutput('pr_types', JSON.stringify(prTypes));
 
   trigger_jenkins:
-    needs: check_pr_body
+    needs: check_pr_merged
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Jenkins Pipeline
+      - name: Trigger Jenkins Pipelines
         env:
-          PR_TYPE: ${{ needs.check_pr_body.outputs.pr_type }}
+          PR_TYPES: ${{ needs.check_pr_merged.outputs.pr_types }}
         run: |
-          if [ "$PR_TYPE" != "UNKNOWN" ]; then
+          PR_TYPES_ARRAY=$(echo $PR_TYPES | jq -r '.[]')
+          
+          for PR_TYPE in $PR_TYPES_ARRAY
+          do
             JENKINS_JOB=""
             case "$PR_TYPE" in
               "MAIN")
@@ -59,12 +58,11 @@ jobs:
             esac
             
             if [ -n "$JENKINS_JOB" ]; then
+              echo "트리거 Jenkins 작업: $JENKINS_JOB"
               curl -X POST \
                 --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }} \
                 "${{ secrets.JENKINS_URL }}/job/${JENKINS_JOB}/build"
             else
-              echo "No matching Jenkins job found for PR type: $PR_TYPE"
+              echo "PR 유형에 대한 일치하는 Jenkins 작업을 찾을 수 없습니다: $PR_TYPE"
             fi
-          else
-            echo "No valid PR type selected"
-          fi
+          done
