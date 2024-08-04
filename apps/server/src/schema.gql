@@ -1,0 +1,95 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type User {
+  uuid: String!
+  userId: String!
+  name: String!
+  email: String!
+  phoneNumber: String!
+  profilePicture: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type PaginatedUsers {
+  users: [User!]!
+  totalCount: Int!
+  totalPages: Int!
+}
+
+type AuthPayload {
+  accessToken: String!
+}
+
+type Reservation {
+  uuid: ID!
+  reservationDate: DateTime!
+  owner: User!
+  users: [User!]!
+  ReservationOnUser: [ReservationOnUser!]!
+}
+
+type ReservationOnUser {
+  userUuid: ID!
+  reservationId: ID!
+  user: User!
+  isAccepted: Boolean!
+  request: String
+}
+
+type Query {
+  users(pagination: PaginationInput!): PaginatedUsers!
+  user(uuid: String!): User
+  me: User!
+  Reservations(date: DateTime!): [Reservation!]!
+  Reservation(uuid: String!): Reservation!
+}
+
+input PaginationInput {
+  page: Int!
+  pageSize: Int!
+}
+
+type Mutation {
+  updateUser(uuid: String!, data: UpdateUserInput!): User!
+  deleteUser(uuid: String!): User!
+  login(username: String!, password: String!): AuthPayload!
+  register(user: CreateUserInput!): AuthPayload!
+  createReservation(data: CreateReservationInput!): Reservation!
+  deleteReservation(reservationId: String!): Boolean!
+}
+
+input UpdateUserInput {
+  userId: String!
+  name: String!
+  email: String!
+  phoneNumber: String!
+  profilePicture: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CreateUserInput {
+  userId: String!
+  password: String!
+  name: String!
+  email: String!
+  phoneNumber: String!
+  profilePicture: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CreateReservationInput {
+  reservationDate: DateTime!
+  userUuid: ID!
+  request: String
+  inviteUsersUuid: [ID!]
+}
